@@ -1,0 +1,14 @@
+/venv-kuwait-proj
+data/raw/
+/__pycache__
+.env
+.streamlit/
+__pycache__
+/env
+*.pyc
+*.pyo
+*.pyd
+*.log
+POC/university_course_information.ipynb
+__pycache__/
+modules/__pycache__/
