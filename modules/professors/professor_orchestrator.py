@@ -9,7 +9,7 @@ client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-def detect_meeting_intent(query: str) -> Tuple[bool, float, str]:
+def detect_meeting_intent(query: str,chat_summary=None) -> Tuple[bool, float, str]:
     """
     Detect if the query is about scheduling a meeting with a professor.
     
@@ -24,7 +24,10 @@ def detect_meeting_intent(query: str) -> Tuple[bool, float, str]:
     """
     system_prompt = """
     You are an intent classifier for a university assistant. Determine if the query is about scheduling a meeting with a professor.
-    
+    1. Mention is the attached summary of the previous conversation to determine the intention
+        -{chat_summary}
+
+        
     Return ONLY a JSON object with the following structure:
     {
         "is_meeting_intent": true/false,
@@ -105,7 +108,7 @@ def generate_meeting_link(professor_name: Optional[str] = None) -> Dict[str, Any
                        f"This is a demo link that will be replaced with a real scheduling system in the future."
     }
 
-def process_professor_query(query: str, collection_name: str) -> Dict[str, Any]:
+def process_professor_query(query: str, collection_name: str,chat_summary=None) -> Dict[str, Any]:
     """
     Process a query related to professors, determining if it's about scheduling
     a meeting or a general question.
@@ -118,7 +121,7 @@ def process_professor_query(query: str, collection_name: str) -> Dict[str, Any]:
         A dictionary with the response and metadata
     """
     # Detect if this is a meeting scheduling intent
-    is_meeting, confidence, reasoning, professor_name = detect_meeting_intent(query)
+    is_meeting, confidence, reasoning, professor_name = detect_meeting_intent(query,chat_summary)
     
     # If it's a meeting request with reasonable confidence
     if is_meeting and confidence > 0.7:

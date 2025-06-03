@@ -2,8 +2,7 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 import logging
-import tempfile
-import time
+from whisper import whisper_stt
 
 # Import the base query classifier
 from base.query_classifier import classify_query_sync
@@ -12,9 +11,6 @@ from base.query_classifier import classify_query_sync
 from modules.classified_chatbot import rag_pipeline_simple
 
 from Library.DB_endpoint import db_endpoint
-
-# Import speech transcriber
-from speech_to_text import SpeechTranscriber
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -95,18 +91,22 @@ def get_module_response(query: str, language: str = "English") -> str:
         Formatted response string
     """
     try:
-        # First, classify the query to determine which module should handle it
-        classification = classify_query_sync(query)
-        module_name = classification.module
-        confidence = classification.confidence
-        reasoning = classification.reasoning
-        
-        logger.info(f"Query classified as '{module_name}' with confidence {confidence}")
+        # Get message history for context
         message_history = []
         if "messages" in st.session_state and isinstance(st.session_state.messages, list):
             message_history = st.session_state.messages[-10:] if len(st.session_state.messages) > 10 else st.session_state.messages
         
-        # Get the response function for the module
+        # First, classify the query to determine which module should handle it (WITH CONTEXT)
+        classification, chat_summary = classify_query_sync(query, message_history)
+        module_name = classification.module
+        confidence = classification.confidence
+        reasoning = classification.reasoning
+        context_influence = classification.context_influence
+        
+        logger.info(f"Query classified as '{module_name}' with confidence {confidence}")
+        if context_influence:
+            logger.info(f"Classification was influenced by conversation context")
+        
         # Special handling for library module
         if module_name == "library":
             logger.info("Processing query through library orchestrator")
@@ -114,9 +114,8 @@ def get_module_response(query: str, language: str = "English") -> str:
                 # Import the library orchestrator
                 from Library import process_library_query
                 
-                
-                # Process the library query through the orchestrator with the model
-                result = process_library_query(query)
+                # Process the library query through the orchestrator with the model and context
+                result = process_library_query(query, chat_summary)
 
                 if result is not None:
                     response = result["response"]
@@ -138,7 +137,7 @@ def get_module_response(query: str, language: str = "English") -> str:
                 else:
                     collection_name = "professor_data_json"
                 
-                result = process_professor_query(query, collection_name)
+                result = process_professor_query(query, collection_name,chat_summary)
                 
                 # If it's a meeting request, return the generated response
                 if result is not None and result.get("is_meeting_request", False):
@@ -147,6 +146,7 @@ def get_module_response(query: str, language: str = "English") -> str:
                     # Add debug info if in development
                     if os.getenv("APP_ENV") == "development":
                         debug_info = f"\n\n---\nDebug: Query classified as '{module_name}' (confidence: {confidence:.2f})\n"
+                        debug_info += f"Context influenced: {context_influence}\n"
                         debug_info += f"Meeting intent detected (confidence: {result.get('confidence', 0):.2f})\n"
                         debug_info += f"Reasoning: {result.get('reasoning', '')}"
                         response += debug_info
@@ -189,14 +189,16 @@ def get_module_response(query: str, language: str = "English") -> str:
             else:
                 model = f"openai/{model}"
         
-        # Use RAG pipeline to get response
-        result = rag_pipeline_simple(modified_query, collection_name, model,message_history=message_history)
+        # Use RAG pipeline to get response (with context summary)
+        result = rag_pipeline_simple(modified_query, collection_name, model, message_history=message_history, chat_summary=chat_summary)
         response = result["response"]
         
         # Add debug info if in development
         debug_info = ""
         if os.getenv("APP_ENV") == "development":
-            debug_info = f"\n\n---\nDebug: Query classified as '{module_name}' (confidence: {confidence:.2f})\nReasoning: {reasoning}"
+            debug_info = f"\n\n---\nDebug: Query classified as '{module_name}' (confidence: {confidence:.2f})\n"
+            debug_info += f"Context influenced: {context_influence}\n"
+            debug_info += f"Reasoning: {reasoning}"
         
         return response + debug_info
             
@@ -207,16 +209,9 @@ def get_module_response(query: str, language: str = "English") -> str:
         else:
             return "I'm sorry, an error occurred while processing your question. Please try again later."
 
-# Initialize the speech transcriber
-@st.cache_resource(ttl="1h")
-def get_speech_transcriber():
-    return SpeechTranscriber()
-
-
-
 # Main app
 def main():
-    # Custom CSS to remove button gaps
+    # Custom CSS to remove button gaps and align input fields
     st.markdown("""
     <style>
     /* Remove padding around buttons */
@@ -230,20 +225,30 @@ def main():
         padding: 0;
         margin: 0;
     }
+    
+    /* Align input fields vertically */
+    .stChatInput, [data-testid="stChatInput"] {
+        margin-bottom: 0;
+    }
+    
+    /* Ensure consistent spacing for columns */
+    div[data-testid="column"] {
+        padding-top: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    
+    /* Align whisper component */
+    .whisper-stt-container {
+        display: flex;
+        align-items: flex-end;
+        height: 100%;
+    }
     </style>
     """, unsafe_allow_html=True)
     
     st.title("🎓 University Assistant")
-    
-    # Initialize session state
-    if "recording" not in st.session_state:
-        st.session_state.recording = False
-        
-    if "transcriber" not in st.session_state:
-        st.session_state.transcriber = get_speech_transcriber()
-        
-    if "audio_counter" not in st.session_state:
-        st.session_state.audio_counter = 0
     
     # Main content area (upper section)
     main_area = st.container()
@@ -288,10 +293,7 @@ def main():
         # Initialize chat history in session state if needed
         if "messages" not in st.session_state:
             st.session_state.messages = []
-        
-        # Recording status indicator
-        recording_status = st.empty()
-    
+    spinner_container = st.container()
     # Bottom container for chat history and input controls
     with bottom_container:
         # Display a separator line
@@ -302,72 +304,75 @@ def main():
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
         
-        # Create two rows: one for audio input (hidden), one for text input and buttons
-        audio_container = st.container()
+        # Single unified input container with columns for text and audio
         input_container = st.container()
         
-        # Audio input (always present but visually managed)
-        with audio_container:
-            # Use a unique key to force reset after processing
-            audio_key = f"audio_input_{st.session_state.get('audio_counter', 0)}"
-            audio_data = st.audio_input("Record your message", key=audio_key)
-        
-        # Text input and buttons
         with input_container:
-            col_input, col_button = st.columns([6, 1])
+            # Create columns for text input and audio input with better alignment
+            col_text, col_audio = st.columns([9, 1])
             
-            # Text input
-            with col_input:
+            # Text input column
+            with col_text:
                 prompt = st.chat_input("Ask me a question...")
             
-        
-        # Process audio if available
-        if audio_data:
-            with st.spinner("Transcribing audio..."):
-                try:
-                    # Save audio data to temporary file
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                        audio_data.seek(0)
-                        tmp_file.write(audio_data.read())
-                        temp_file = tmp_file.name
+            # Audio input column
+            with col_audio:
+                
+                # Create a container to help with alignment
+                audio_wrapper = st.container()
+                
+                with audio_wrapper:
+                    # Initialize audio processing state
+                    if "audio_processed" not in st.session_state:
+                        st.session_state.audio_processed = False
+                    if "last_audio_text" not in st.session_state:
+                        st.session_state.last_audio_text = ""
                     
-                    # Transcribe the audio
-                    transcribed_text = st.session_state.transcriber.transcribe_audio(temp_file)
+                    # Determine language for whisper based on selected language
+                    whisper_language = 'ar' if language.lower() == 'arabic' else 'en'
                     
-                    if transcribed_text:
+                    # Use whisper_stt for audio transcription
+                    transcribed_text = whisper_stt(language=whisper_language)
+                    
+                    # Only process if we have new audio text and haven't processed it yet
+                    if (transcribed_text and 
+                        transcribed_text != st.session_state.last_audio_text and 
+                        not st.session_state.audio_processed):
+                        
+                        # Mark as processed and store the text
+                        st.session_state.audio_processed = True
+                        st.session_state.last_audio_text = transcribed_text
+                        
                         # Add to session state message history
                         st.session_state.messages.append({"role": "user", "content": transcribed_text})
                         
-                        # Generate response
-                        with st.spinner("Generating response..."):
-                            response = get_module_response(transcribed_text, language=language)
+                        # Use the shared spinner container for audio processing too
+                        with spinner_container:
+                            with st.spinner("Generating response..."):
+                                response = get_module_response(transcribed_text, language=language)
                         
                         # Update message history with response
                         st.session_state.messages.append({"role": "assistant", "content": response})
                         
-                        # Increment counter to reset audio widget
-                        st.session_state.audio_counter = st.session_state.get('audio_counter', 0) + 1
+                        # Reset the processed flag after a short delay to allow new recordings
+                        st.session_state.audio_processed = False
                         
-                        # Rerun to show new messages and reset audio
+                        # Rerun to show new messages
                         st.rerun()
-                    else:
-                        st.warning("Could not transcribe audio. Please try again.")
-                        
-                except Exception as e:
-                    st.error(f"Error processing audio: {str(e)}")
-                    logger.error(f"Audio processing error: {e}", exc_info=True)
-        
-      
+    
+        # Create a separate container for spinner outside the input area
+        spinner_container = st.container()
     
     # Handle text input
     if prompt:
         # Add to session state message history
         st.session_state.messages.append({"role": "user", "content": prompt})
         
-        # Show a loading spinner while generating response
-        with st.spinner("Generating response..."):
-            # Generate response
-            response = get_module_response(prompt, language=language)
+        # Show spinner in the dedicated container outside input area
+        with spinner_container:
+            with st.spinner("Generating response..."):
+                # Generate response
+                response = get_module_response(prompt, language=language)
         
         # Update message history
         st.session_state.messages.append({"role": "assistant", "content": response})

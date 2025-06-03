@@ -42,6 +42,9 @@ def search_qdrant_simple(query: str, collection_name: str, limit: int = 10) -> L
     embedding = generate_embedding(query)
 
     start_time = time.time()
+    
+    print("======================================================================",collection_name)
+    print("======================================================================",query)
     # Perform search
     search_results = qdrant_client.query_points(
         collection_name=collection_name,
@@ -50,7 +53,7 @@ def search_qdrant_simple(query: str, collection_name: str, limit: int = 10) -> L
         with_payload=True,
         score_threshold=0.4
     )
-    print(search_results)
+    print("======================================================================",search_results)
     search_time = time.time() - start_time
     print(f"Search time: {search_time} seconds")
 
@@ -67,7 +70,7 @@ def search_qdrant_simple(query: str, collection_name: str, limit: int = 10) -> L
 
     return results
 
-def generate_response(query: str, context: List[Dict[str, Any]], model: str = "openai/gpt-4o-mini", message_history=None) -> str:
+def generate_response(query: str, context: List[Dict[str, Any]], model: str = "openai/gpt-4o-mini", message_history=None,chat_summary=None) -> str:
     """Generate a response using OpenAI based on retrieved context and message history."""
     # Prepare context text from search results
     start_time = time.time()
@@ -110,7 +113,7 @@ def generate_response(query: str, context: List[Dict[str, Any]], model: str = "o
     
     # Add the current query with context
     user_prompt = f"Question: {query}\n\nContext from university documents:\n{context_text}"
-    messages.append({"role": "user", "content": user_prompt})
+    messages.append({"role": "user", "content": user_prompt + "Mentioned is the chat summary to understand what previous conversation is about :" + str(chat_summary)})
     
     start_time_1 = time.time()
     response = client.chat.completions.create(
@@ -123,7 +126,7 @@ def generate_response(query: str, context: List[Dict[str, Any]], model: str = "o
 
     return response.choices[0].message.content
 
-def rag_pipeline_simple(query: str, collection_name: str = "admission_course_guide", model: str = "openai/gpt-4o-mini", message_history=None):
+def rag_pipeline_simple(query: str, collection_name: str = "admission_course_guide", model: str = "openai/gpt-4o-mini", message_history=None,chat_summary=None):
     """Complete RAG pipeline from user query to response."""
     print(f"Original query: {query}")
     #print(f"message_history: {message_history}")
@@ -132,7 +135,7 @@ def rag_pipeline_simple(query: str, collection_name: str = "admission_course_gui
     search_results = search_qdrant_simple(query, collection_name, limit=3)
 
     # Generate response
-    response = generate_response(query, search_results, model, message_history)
+    response = generate_response(query, search_results, model, message_history,chat_summary)
 
     return {
         "original_query": query,

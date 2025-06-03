@@ -12,7 +12,7 @@ client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-def detect_query_intent(query: str) -> Tuple[str, float, str]:
+def detect_query_intent(query: str,chat_summary=None) -> Tuple[str, float, str]:
     """
     Detect the intent of the library query (booking, information, etc.).
     
@@ -29,7 +29,10 @@ def detect_query_intent(query: str) -> Tuple[str, float, str]:
     You are an intent classifier for a university library assistant. Determine if the query is about:
     1. Booking/reserving a book
     2. General information about books (availability, author, etc.)
-    
+    3. Mentioned is the Chat Summary to determine the intent of the query
+        -{chat_summary}
+
+
     Return ONLY a JSON object with the following structure:
     {
         "intent": "booking" or "information",
@@ -79,7 +82,7 @@ def detect_query_intent(query: str) -> Tuple[str, float, str]:
         # Default to information if there's an error
         return "information", 0.6, f"Error during classification, defaulting to information query: {str(e)}"
 
-def extract_book_name(query: str) -> str:
+def extract_book_name(query: str,chat_summary=None) -> str:
     """
     Extract the book name from a booking query.
     
@@ -90,8 +93,11 @@ def extract_book_name(query: str) -> str:
         The extracted book name or None if not found
     """
     system_prompt = """
-    Extract the book name from the user's query. Return ONLY the book name without any additional text or formatting.
+    Intelligently Extract the book name from the user's query or chat summary as mentioned. Return ONLY the book name without any additional text or formatting.
     If no book name is found, return "unknown".
+    Check the Previous chat summary is there any talk about the book or no.
+    Mentioned is the attached chat summary
+    -{chat_summary}
     
     Examples:
     Query: "I want to reserve the book Clean Code"
@@ -299,7 +305,7 @@ def format_library_response(query: str, results: Dict[str, Any]) -> str:
         
         return response
 
-def process_library_query(query: str) -> Dict[str, Any]:
+def process_library_query(query: str,chat_summary=None) -> Dict[str, Any]:
     """
     Process a query related to the library, determining if it should use the database
     endpoint or be handled by a general response using the RAG pipeline.
@@ -318,7 +324,7 @@ def process_library_query(query: str) -> Dict[str, Any]:
         # Handle booking intent
         if intent == "booking" and confidence > 0.6:
             # Extract book name from query
-            book_name = extract_book_name(query)
+            book_name = extract_book_name(query,chat_summary)
             print(f"Extracted book name: {book_name}")  # Debug print
             
             if not book_name:

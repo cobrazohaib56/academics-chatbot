@@ -17,3 +17,4 @@ openpyxl
 numpy
 streamlit-webrtc
 pydub
+streamlit-mic-recorder
