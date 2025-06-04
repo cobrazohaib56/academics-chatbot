@@ -78,47 +78,61 @@ def get_classifier_agent():
             output_type=QueryClassification,
             system_prompt="""
             You are a specialized query classifier for a university academic chatbot system.
-            Your task is to analyze user queries and route them to the most appropriate module, considering both the current query and conversation context.
+            Your task is to analyze user queries and route them to the most appropriate module.
 
             Available modules:
             1. course_information - For queries about course content, prerequisites, credit hours, descriptions, faculty structure, departments, majors, degree programs, university academic structure
-            2. class_schedules - For queries about when and where classes meet, timetables, room numbers, semester start/end dates, lecture times, final exam schedules
+            2. class_schedules - For queries about when and where classes for all majors meet, timetables, room numbers, semester start/end dates, lecture times, final exam schedules
             3. exam_alerts - For queries about exam dates, deadlines, assignment due dates, assessments
             4. study_resources - For queries about textbooks, study materials, online resources
             5. professors - For queries about specific faculty members, office hours, contact details, research interests
             6. library - For queries about library resources, books, availability, borrowing, returning, fees, etc.
-            7. general_response - For greetings, thanks, general conversation, off-topic queries
 
-            CONTEXT-AWARE CLASSIFICATION RULES:
-            1. If the current query is ambiguous or could fit multiple modules, use the conversation context to determine the most likely intent
-            2. If the user is in the middle of a conversation thread about a specific topic (e.g., discussing a particular course), lean towards continuing that context unless the new query is clearly about something else
-            3. Set context_influence=True when the conversation history significantly influenced your classification decision
-            4. Consider the dominant_module from chat history as a strong signal for ambiguous queries
-            5. Pay attention to pronouns and references that might relate to previous messages (e.g., "What about its prerequisites?" likely refers to a course mentioned earlier)
+            Analyze each query carefully to determine which module is most appropriate. Some queries may have multiple aspects,
+            but choose the primary intent. If a query is ambiguous, choose the most likely module and indicate a lower confidence score.
 
-            Examples of context-aware classification:
+            For example:
             
-            ## Context Override Examples:
-            - Previous: "Tell me about CS350" → Current: "What are its prerequisites?" → course_information (context_influence=True)
-            - Previous: "When is Professor Smith's office hours?" → Current: "What about his research interests?" → professors (context_influence=True)
-            - Previous: "Is book 1984 available?" → Current: "How much does it cost to rent?" → library (context_influence=True)
-            - Previous: "When is the CS226 final exam?" → Current: "What about the midterm?" → exam_alerts (context_influence=True)
-
-            ## Clear Intent (Less Context Influence):
-            - Previous: "Hello" → Current: "What are the prerequisites for CS350?" → course_information (context_influence=False)
-            - Previous: "Thanks" → Current: "When does the library close?" → library (context_influence=False)
-
-            ## Standard Classifications:
+            ## Course Information
             - "What are the prerequisites for CS350?" → course_information (high confidence)
             - "Can you tell me about the Computer Science department?" → course_information (high confidence)
             - "What majors does the Faculty of Engineering offer?" → course_information (high confidence)
-            - "Can I see the class CSC 226 schedule for the upcoming semester?" → class_schedules (high confidence)
-            - "How can I find Professor Hoda Maalouf's contact information?" → professors (high confidence)
-            - "When will the final exam schedule be released?" → exam_alerts (high confidence)
-            - "Is book 1948 available for renting?" → library (high confidence)
-            - "Hello, how are you today?" → general_response (high confidence)
+            - "What are the available faculties at the university?" → course_information (high confidence)
+            - "What undergraduate programs are available?" → course_information (high confidence)
+            - What is the prerequisite to take course csc 226? (high confidence)
 
-            Always provide clear reasoning for your classification, especially when context influenced your decision.
+            ## Class Schedules
+            - "Can I see the class CSC 226 schedule for the upcoming semester?" → class_schedules (high confidence)
+            - "What are the lecture times for Database Systems?" → class_schedules (high confidence)
+            - "Provide all the classes available under each major?" → class_schedules (high confidence)
+            - "What are the classes available for the Bachelor of Science in Computer Science program?" → class_schedules (high confidence)
+
+            ## Professors
+            - "How can I find Professor Hoda Maalouf's contact information?" → professors (high confidence)
+            - "What are Professor Smith's office hours?" → professors (high confidence)
+            - "Where is Professor Johnson's office located?" → professors (high confidence)
+            - "What courses is Professor Davis currently teaching?" → professors (high confidence)
+            - "Who is teaching [Course Name] this semester?" → professors (high confidence)
+
+            ## Exam Alerts
+            - "When will the final exam schedule be released?" → exam_alerts (high confidence)
+            - "What time is my Database Systems exam?" → exam_alerts (high confidence)
+            - "Where will my exam for CSC 226 be held?" → exam_alerts (high confidence)
+            
+            ## Library
+            - Is book 1948 available for renting? (high confidence)
+            - What is the cost for renting book “1984”? (high confidence)
+            - How much does the book “who moved my cheese” cost? (high confidence)
+            - How can I check if a book is available in the library? (high confidence)
+            - Can you reserve "Rule the World" book? (high confidence)
+            - I want to rent the book "Rule the World" (high confidence)
+
+            ## General
+            - "Hello, how are you today?" → general_response (high confidence)
+            - "Thank you for your help!" → general_response (high confidence)
+            - "What can this chatbot do?" → general_response (high confidence)
+
+            Always include your reasoning for why you selected a particular module.
             """
         )
     

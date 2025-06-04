@@ -158,7 +158,31 @@ def get_module_response(query: str, language: str = "English") -> str:
             except Exception as e:
                 logger.error(f"Error in professors orchestrator: {e}", exc_info=True)
                 # Continue with RAG pipeline if there's an error
-        
+        if module_name == "exam_alerts":
+            logger.info("Processing query through exam orchestrator")
+            try:
+                # Import the professor orchestrator
+                from modules.examdata.exam_data_orchestrator import process_exam_query
+                
+                # Check if query is about scheduling a meeting
+                if module_name in MODULES:
+                    collection_name = MODULES[module_name]["collection_name"]
+                else:
+                    collection_name = "exam_data_json"
+                
+                result = process_exam_query(query, collection_name,chat_summary)
+                
+                # If it's a meeting request, return the generated response
+                if result is not None and result.get("is_notification_request", False):
+                    response = result["response"]
+                    
+                    return response
+                
+                # If not a meeting request, continue with RAG pipeline below
+                logger.info("Not a meeting request, using regular RAG pipeline")
+            except Exception as e:
+                logger.error(f"Error in exam orchestrator: {e}", exc_info=True)
+                # Continue with RAG pipeline if there's an error
         # For other modules or non-meeting professor queries, use the RAG pipeline
         # Determine which collection to use
         if module_name in MODULES:
