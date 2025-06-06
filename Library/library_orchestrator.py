@@ -28,7 +28,7 @@ def detect_query_intent(query: str,chat_summary=None) -> Tuple[str, float, str]:
     system_prompt = """
     You are an intent classifier for a university library assistant. Determine if the query is about:
     1. Booking/reserving a book
-    2. General information about books (availability, author, etc.)
+    2. General information about books (availability of a book, author, etc.)
     3. Mentioned is the Chat Summary to determine the intent of the query
         -{chat_summary}
 
@@ -56,7 +56,7 @@ def detect_query_intent(query: str,chat_summary=None) -> Tuple[str, float, str]:
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-nano",  # OpenRouter model
+            model="gpt-4o-mini",  # OpenRouter model
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query}
@@ -145,7 +145,7 @@ def check_book_availability(book_name: str) -> Tuple[bool, Dict[str, Any]]:
         # Query to check book availability
         query = """
         SELECT * FROM Library 
-        WHERE Book_Name LIKE ? AND (Booked IS NULL OR Booked = '')
+        WHERE LOWER(Book_Name) LIKE LOWER(?) AND (Booked IS NULL OR Booked = '')
         """
         
         cursor.execute(query, (f"%{book_name}%",))

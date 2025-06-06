@@ -24,7 +24,7 @@ class QueryClassification(BaseModel):
     """Classification of a user query to determine which module should handle it"""
     user_query: str = Field(..., description="The original user query")
     module: str = Field(..., description="The module that should handle this query", 
-                       examples=["course_information", "class_schedules", "exam_alerts", "study_resources", "professors", "library", "general_response"])
+                       examples=["course_information", "class_schedules", "exam_alerts", "study_resources", "professors", "library"])
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence level of this classification (0.0 to 1.0)")
     reasoning: str = Field(..., description="Explanation of why this module was selected")
     context_influence: bool = Field(False, description="Whether chat history influenced this classification")
@@ -60,7 +60,6 @@ def get_summarizer_agent():
             - study_resources: Textbooks, study materials
             - professors: Faculty information, office hours, contact details
             - library: Library resources, books, availability, fees
-            - general_response: Greetings, thanks, general chat
             
             Provide a concise but informative summary that will help classify the next query in context.
             """
@@ -99,7 +98,8 @@ def get_classifier_agent():
             - "What majors does the Faculty of Engineering offer?" → course_information (high confidence)
             - "What are the available faculties at the university?" → course_information (high confidence)
             - "What undergraduate programs are available?" → course_information (high confidence)
-            - What is the prerequisite to take course csc 226? (high confidence)
+            - What is the prerequisite to take course csc 226? → course_information (high confidence)
+            - "What is the university Tuition?" → course_information (high confidence)
 
             ## Class Schedules
             - "Can I see the class CSC 226 schedule for the upcoming semester?" → class_schedules (high confidence)
@@ -126,11 +126,6 @@ def get_classifier_agent():
             - How can I check if a book is available in the library? (high confidence)
             - Can you reserve "Rule the World" book? (high confidence)
             - I want to rent the book "Rule the World" (high confidence)
-
-            ## General
-            - "Hello, how are you today?" → general_response (high confidence)
-            - "Thank you for your help!" → general_response (high confidence)
-            - "What can this chatbot do?" → general_response (high confidence)
 
             Always include your reasoning for why you selected a particular module.
             """
@@ -213,10 +208,10 @@ def classify_query_with_context(query: str, chat_history: List[Dict[str, str]] =
         classification = result.output
         
         # Ensure module is one of the allowed values
-        allowed_modules = ["course_information", "class_schedules", "exam_alerts", "study_resources", "professors", "library", "general_response"]
+        allowed_modules = ["course_information", "class_schedules", "exam_alerts", "study_resources", "professors", "library"]
         if classification.module not in allowed_modules:
-            # Default to general_response if invalid module
-            classification.module = "general_response"
+            # Default to course_information if invalid module
+            classification.module = "course_information"
             classification.confidence = min(classification.confidence, 0.4)
             classification.reasoning += " (Corrected: original module classification was invalid)"
         
@@ -234,7 +229,7 @@ def classify_query_with_context(query: str, chat_history: List[Dict[str, str]] =
         # Default classification in case of error
         return QueryClassification(
             user_query=query,
-            module="general_response",
+            module="course_information",
             confidence=0.1,
             reasoning=f"Error during classification: {str(e)}",
             context_influence=False,
