@@ -222,13 +222,14 @@ def book_available_book(book_name: str) -> Tuple[bool, str]:
         if 'conn' in locals():
             conn.close()
 
-def format_library_response(query: str, results: Dict[str, Any]) -> str:
+def format_library_response(query: str, results: Dict[str, Any], is_arabic: bool = False) -> str:
     """
     Use an LLM to format the library query results into a well-structured, readable response.
     
     Args:
         query: The original user query
         results: The database query results
+        is_arabic: Whether the response should be in Arabic
         
     Returns:
         A well-formatted, conversational response string
@@ -245,8 +246,28 @@ def format_library_response(query: str, results: Dict[str, Any]) -> str:
         # Prepare the system prompt
         system_prompt = """
         You are a library assistant that formats database query results into a conversational response.
-        Use the provided query and SQL results to generate a friendly, informative response.
+        Your task is to create a clean, well-formatted response following these rules:
+        
+        1. Format all prices with $ symbol and 2 decimal places (e.g., $6.11)
+        2. Present prices in a clear format: "Booking fee: $X.XX, Selling price: $Y.YY"
+        3. Keep the response in a single, well-structured paragraph
+        4. Use proper spacing and punctuation
+        5. Do not use any special characters, markdown, or formatting
+        6. Make the response natural and conversational
+        7. If multiple books are found, list them clearly with their details
+        
+        Example of good formatting in English:
+        "Yes, we have the book '1984' by George Orwell. It is a dystopian novel that explores themes of totalitarianism and surveillance. The booking fee is $6.11, and the selling price is $31.22."
+        
+        Example of good formatting in Arabic:
+        "نعم، لدينا كتاب '1984' لجورج أورويل. إنه رواية ديستوبية تستكشف موضوعات الشمولية والمراقبة. رسوم الحجز هي 6.11 دولار، وسعر البيع هو 31.22 دولار."
         """
+        
+        # Add language instruction
+        if is_arabic:
+            system_prompt += "\n\nPlease provide the response in Arabic, maintaining the same formatting rules but using Arabic text and right-to-left formatting where appropriate."
+        else:
+            system_prompt += "\n\nPlease provide the response in English."
         
         # Prepare the context with query results
         context = f"User query: {query}\n\nSQL query used: {sql_query}\n\nQuery results:\n"
@@ -259,7 +280,7 @@ def format_library_response(query: str, results: Dict[str, Any]) -> str:
         else:
             context += f"Found {len(data)} books:\n\n"
             for i, item in enumerate(data):
-                if isinstance(item, dict):  # Check if item is a dictionary
+                if isinstance(item, dict):
                     context += f"Book {i+1}:\n"
                     for key, value in item.items():
                         if value is not None:
@@ -270,7 +291,7 @@ def format_library_response(query: str, results: Dict[str, Any]) -> str:
         
         # Generate formatted response using OpenRouter
         response = client.chat.completions.create(
-            model="gpt-4.1-nano",  # OpenRouter model
+            model="gpt-4.1-nano",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": context}
@@ -279,31 +300,44 @@ def format_library_response(query: str, results: Dict[str, Any]) -> str:
             max_tokens=800
         )
         
-        formatted_response = response.choices[0].message.content
-        return formatted_response
+        return response.choices[0].message.content.strip()
     
     except Exception as e:
         print(f"Error formatting library response: {e}")
         # Return a simple formatted response as fallback
         if "error" in results:
+            if is_arabic:
+                return f"عذراً، حدث خطأ أثناء البحث عن الكتب: {results['error']}"
             return f"Sorry, I encountered an error while searching for books: {results['error']}"
         
         data = results.get("results", [])
         if not data:
+            if is_arabic:
+                return "لم أتمكن من العثور على أي كتب تطابق استفسارك. ربما يمكنك تجربة كلمات مفتاحية مختلفة أو السؤال عن كتاب آخر؟"
             return "I couldn't find any books matching your query. Perhaps try different keywords or ask about another book?"
         
-        response = f"Here are the books I found for '{query}':\n\n"
+        # Let the LLM format the fallback response as well
+        fallback_context = f"Format these book results in a conversational way:\n\n"
         for i, item in enumerate(data):
-            response += f"**Book {i+1}**:\n"
-            if isinstance(item, dict):  # Check if item is a dictionary
+            if isinstance(item, dict):
+                fallback_context += f"Book {i+1}:\n"
                 for key, value in item.items():
                     if value is not None:
-                        response += f"- **{key}**: {value}\n"
+                        fallback_context += f"- {key}: {value}\n"
             else:
-                response += f"{str(item)}\n"
-            response += "\n"
+                fallback_context += f"Book {i+1}: {str(item)}\n"
         
-        return response
+        fallback_response = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": fallback_context}
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+        
+        return fallback_response.choices[0].message.content.strip()
 
 def process_library_query(query: str,chat_summary=None) -> Dict[str, Any]:
     """

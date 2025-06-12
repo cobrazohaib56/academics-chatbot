@@ -108,7 +108,7 @@ def generate_meeting_link(professor_name: Optional[str] = None) -> Dict[str, Any
                        f"This is a demo link that will be replaced with a real scheduling system in the future."
     }
 
-def process_professor_query(query: str, collection_name: str,chat_summary=None) -> Dict[str, Any]:
+def process_professor_query(query: str, collection_name: str, chat_summary=None, is_arabic: bool = False) -> Dict[str, Any]:
     """
     Process a query related to professors, determining if it's about scheduling
     a meeting or a general question.
@@ -116,23 +116,26 @@ def process_professor_query(query: str, collection_name: str,chat_summary=None) 
     Args:
         query: The user's question
         collection_name: The name of the Qdrant collection for professors
+        chat_summary: Summary of previous conversation
+        is_arabic: Whether the response should be in Arabic
         
     Returns:
         A dictionary with the response and metadata
     """
     # Detect if this is a meeting scheduling intent
-    is_meeting, confidence, reasoning, professor_name = detect_meeting_intent(query,chat_summary)
+    is_meeting, confidence, reasoning, professor_name = detect_meeting_intent(query, chat_summary)
     
     # If it's a meeting request with reasonable confidence
     if is_meeting and confidence > 0.7:
-        # Extract professor name if possible
-        # professor_name = extract_professor_name(query)
-        
         # Generate meeting link
         meeting_info = generate_meeting_link(professor_name)
         
-        response = f"I'd be happy to help you schedule a meeting{' with ' + professor_name if professor_name else ''}. " + meeting_info["instructions"]
-        response += f"\n\nScheduling Link: {meeting_info['meeting_link']}"
+        if is_arabic:
+            response = f"سأكون سعيداً بمساعدتك في جدولة اجتماع{' مع ' + professor_name if professor_name else ''}. " + meeting_info["instructions"]
+            response += f"\n\nرابط الجدولة: {meeting_info['meeting_link']}"
+        else:
+            response = f"I'd be happy to help you schedule a meeting{' with ' + professor_name if professor_name else ''}. " + meeting_info["instructions"]
+            response += f"\n\nScheduling Link: {meeting_info['meeting_link']}"
         
         return {
             "response": response,

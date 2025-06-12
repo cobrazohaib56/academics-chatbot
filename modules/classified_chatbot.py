@@ -70,7 +70,7 @@ def search_qdrant_simple(query: str, collection_name: str, limit: int = 10) -> L
 
     return results
 
-def generate_response(query: str, context: List[Dict[str, Any]], model: str = "openai/gpt-4o-mini", message_history=None,chat_summary=None) -> str:
+def generate_response(query: str, context: List[Dict[str, Any]], model: str = "openai/gpt-4o-mini", message_history=None, chat_summary=None, is_arabic: bool = False) -> str:
     """Generate a response using OpenAI based on retrieved context and message history."""
     # Prepare context text from search results
     start_time = time.time()
@@ -96,6 +96,10 @@ def generate_response(query: str, context: List[Dict[str, Any]], model: str = "o
 
     Your goal is to provide the single most accurate answer as if you were an official university representative.
     """
+
+    # Add language instruction to system prompt if Arabic is requested
+    if is_arabic:
+        system_prompt += "\n\nIMPORTANT: Respond in Arabic language only."
 
     print("Used Model: ", model)
     
@@ -126,19 +130,23 @@ def generate_response(query: str, context: List[Dict[str, Any]], model: str = "o
 
     return response.choices[0].message.content
 
-def rag_pipeline_simple(query: str, collection_name: str = "admission_course_guide", model: str = "openai/gpt-4o-mini", message_history=None,chat_summary=None):
-    """Complete RAG pipeline from user query to response."""
-    print(f"Original query: {query}")
-    #print(f"message_history: {message_history}")
-
-    # Search Qdrant with a single query
-    search_results = search_qdrant_simple(query, collection_name, limit=3)
-
-    # Generate response
-    response = generate_response(query, search_results, model, message_history,chat_summary)
-
-    return {
+def rag_pipeline_simple(query: str, collection_name: str, model: str = "openai/gpt-4o-mini", message_history=None, chat_summary=None, is_arabic: bool = False) -> Dict[str, Any]:
+    """Simple RAG pipeline that retrieves context and generates a response."""
+    try:
+        # Retrieve relevant context
+        search_results = search_qdrant_simple(query, collection_name, limit=3)
+        
+        # Generate response using the context
+        response = generate_response(query, search_results, model, message_history, chat_summary, is_arabic)
+        
+        return {
         "original_query": query,
         "search_results": search_results,
         "response": response
     }
+    except Exception as e:
+        print(f"Error in RAG pipeline: {e}")
+        return {
+            "response": "I apologize, but I encountered an error while processing your request.",
+            "context": []
+        }

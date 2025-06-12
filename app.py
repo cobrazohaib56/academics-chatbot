@@ -12,6 +12,9 @@ from modules.classified_chatbot import rag_pipeline_simple
 
 from Library.DB_endpoint import db_endpoint
 
+# Import translation handler
+from base.translation_handler import is_arabic, translate_to_english
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -95,6 +98,14 @@ def get_module_response(query: str, language: str = "English") -> str:
         message_history = []
         if "messages" in st.session_state and isinstance(st.session_state.messages, list):
             message_history = st.session_state.messages[-10:] if len(st.session_state.messages) > 10 else st.session_state.messages
+        
+        # Check if query is in Arabic and translate if needed
+        is_arabic_query = is_arabic(query)
+        if is_arabic_query:
+            translated_query, success = translate_to_english(query)
+            if success:
+                query = translated_query
+                print("Translated Query for Classification: ", query)
         
         # First, classify the query to determine which module should handle it (WITH CONTEXT)
         classification, chat_summary = classify_query_sync(query, message_history)
@@ -192,13 +203,6 @@ def get_module_response(query: str, language: str = "English") -> str:
             logger.warning(f"Module '{module_name}' not found, falling back to study resources")
             collection_name = MODULES["study_resources"]["collection_name"]
         
-        # Modify query to include language preference
-        language_prefix = ""
-        if language.lower() == "arabic":
-            language_prefix = "Please respond in Arabic: "
-        
-        modified_query = language_prefix + query
-        
         # Get the selected model from session state
         model = st.session_state.get("model", "openai/gpt-4o-mini")
         
@@ -214,7 +218,7 @@ def get_module_response(query: str, language: str = "English") -> str:
                 model = f"openai/{model}"
         
         # Use RAG pipeline to get response (with context summary)
-        result = rag_pipeline_simple(modified_query, collection_name, model, message_history=message_history, chat_summary=chat_summary)
+        result = rag_pipeline_simple(query, collection_name, model, message_history=message_history, chat_summary=chat_summary, is_arabic=is_arabic_query)
         response = result["response"]
         
         # Add debug info if in development

@@ -117,7 +117,7 @@ def setup_exam_notification(exam_subject: Optional[str] = None) -> Dict[str, Any
                    f"This is a demo notification system that will be replaced with a real notification service in the future."
     }
 
-def process_exam_query(query: str, collection_name: str, chat_summary=None) -> Dict[str, Any]:
+def process_exam_query(query: str, collection_name: str, chat_summary=None, is_arabic: bool = False) -> Dict[str, Any]:
     """
     Process a query related to exams, determining if it's about setting up
     notifications or a general question.
@@ -126,6 +126,7 @@ def process_exam_query(query: str, collection_name: str, chat_summary=None) -> D
         query: The user's question
         collection_name: The name of the Qdrant collection for exams
         chat_summary: Summary of previous conversation
+        is_arabic: Whether the response should be in Arabic
         
     Returns:
         A dictionary with the response and metadata
@@ -138,9 +139,14 @@ def process_exam_query(query: str, collection_name: str, chat_summary=None) -> D
         # Set up exam notification
         notification_info = setup_exam_notification(exam_subject)
         
-        response = f"Perfect! I've set up exam notifications{' for ' + exam_subject if exam_subject else ''}. " + notification_info["message"]
-        response += f"\n\nNotification ID: {notification_info['notification_id']}"
-        response += f"\nStatus: {notification_info['status'].upper()}"
+        if is_arabic:
+            response = f"ممتاز! لقد قمت بإعداد إشعارات الامتحان{' لـ ' + exam_subject if exam_subject else ''}. " + notification_info["message"]
+            response += f"\n\nمعرف الإشعار: {notification_info['notification_id']}"
+            response += f"\nالحالة: {notification_info['status'].upper()}"
+        else:
+            response = f"Perfect! I've set up exam notifications{' for ' + exam_subject if exam_subject else ''}. " + notification_info["message"]
+            response += f"\n\nNotification ID: {notification_info['notification_id']}"
+            response += f"\nStatus: {notification_info['status'].upper()}"
         
         return {
             "response": response,
