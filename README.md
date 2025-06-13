@@ -6,54 +6,97 @@ A comprehensive university assistant chatbot system with RAG (Retrieval Augmente
 
 - **Hybrid Search**: Combines vector similarity with keyword and heading matching to provide more accurate responses
 - **Document Structure Awareness**: Preserves document hierarchies and headings for contextual understanding
-- **Multi-language Support**: Currently supports English and Arabic interfaces
+- **Multi-language Support**: Full support for English and Arabic interfaces with automatic language detection
 - **Various Data Source Handling**: Process PDFs, DOCXs, TXTs, CSVs, and Excel files
 - **Pre-processed Data Support**: Can ingest both raw and pre-processed structured data
 - **Rich Metadata**: Extracts and utilizes headings, keywords, and entities for improved retrieval
 - **Multiple AI Models**: Support for various models via OpenRouter and OpenAI, with a convenient dropdown selector
 - **Conversation History**: Maintains chat history for contextual understanding in conversations
+- **Module-Specific Processing**: Specialized handling for different types of queries (library, professors, exams)
 
-## System Components
+## System Architecture
 
-### Data Ingestion
+### Core Components
 
-- `ingest_data.py`: Process raw document files (PDF, DOCX, TXT, Excel, CSV) and extract structured data
-- `ingest_processed.py`: Ingest pre-processed structured data from the `data/processed` directory
+1. **Main Application (`app.py`)**
+   - Streamlit-based user interface
+   - Language detection and translation
+   - Query classification and routing
+   - Model selection and management
+   - Conversation history management
 
-### Chatbot Core
+2. **Query Classification (`base/query_classifier.py`)**
+   - Determines the appropriate module for each query
+   - Considers conversation context
+   - Provides confidence scores and reasoning
 
-- `utils/chatbot.py`: Contains the core RAG implementation with hybrid search capabilities
-- `app.py`: Streamlit-based user interface for interacting with the chatbot
+3. **RAG Pipeline (`modules/classified_chatbot.py`)**
+   - Implements hybrid search
+   - Handles context management
+   - Generates responses using selected AI model
 
-### Utilities
+### Specialized Modules
 
-- `delete_collection.py`: Delete collections from Qdrant
-- `export_chunks.py`: Export processed chunks from the vector database
-- `test_search.py`: Test search functionality independently
+1. **Library Module (`Library/library_orchestrator.py`)**
+   - Book availability checking
+   - Booking functionality
+   - Price and fee formatting
+   - Bilingual response generation
+
+2. **Professor Module (`modules/professors/professor_orchestrator.py`)**
+   - Meeting scheduling intent detection
+   - Professor information retrieval
+   - Meeting link generation
+   - Bilingual response handling
+
+3. **Exam Module (`modules/examdata/exam_data_orchestrator.py`)**
+   - Exam notification setup
+   - Exam information retrieval
+   - Notification management
+   - Bilingual response generation
+
+### Language Support
+
+1. **Translation Handler (`base/translation_handler.py`)**
+   - Arabic language detection
+   - Query translation to English
+   - Response translation to Arabic
+
+2. **Bilingual Response Generation**
+   - All modules support both English and Arabic
+   - Maintains formatting consistency
+   - Handles right-to-left text appropriately
+
+## Data Flow
+
+1. **Query Processing**
+   ```
+   User Query → Language Detection → Translation (if needed) → Query Classification → Module Routing
+   ```
+
+2. **Response Generation**
+   ```
+   Module Processing → RAG Pipeline → Response Generation → Language Formatting → User Response
+   ```
+
+3. **Specialized Module Flow**
+   ```
+   Query → Intent Detection → Specialized Processing → Response Generation → Language Formatting
+   ```
 
 ## Setup and Usage
 
 ### Environment Setup
 
 1. Create a `.env` file based on the `env_template.txt`
-   - You'll need to provide your OpenAI API key
-   - For using multiple models, you'll also need an OpenRouter API key
+   - OpenAI API key
+   - OpenRouter API key
+   - Other configuration settings
+
 2. Install dependencies:
    ```
    pip install -r requirements.txt
    ```
-
-### Data Ingestion
-
-For raw data:
-```
-python ingest_data.py --data_dir data/raw --recreate
-```
-
-For pre-processed data:
-```
-python ingest_processed.py --data_dir data/processed
-```
 
 ### Running the Application
 
@@ -61,42 +104,35 @@ python ingest_processed.py --data_dir data/processed
 streamlit run app.py
 ```
 
-## Hybrid Search Architecture
+## Module-Specific Features
 
-The system implements a sophisticated hybrid search approach that combines:
+### Library Module
+- Book availability checking
+- Booking system integration
+- Price and fee management
+- Book information retrieval
 
-1. **Vector Similarity**: Semantic similarity using OpenAI embeddings
-2. **Keyword Matching**: Exact/partial matches of keywords in text
-3. **Heading Matching**: Finding matches within document headings
-4. **Entity Matching**: Extracting and matching specific entities like course codes
+### Professor Module
+- Meeting scheduling
+- Professor information lookup
+- Office hours management
+- Contact information retrieval
 
-The search results are combined and re-ranked based on a weighted scoring system:
-- Vector similarity (70% base weight)
-- Keyword matches (30% base weight)
-- Heading matches (20% boost per match)
-- Entity matches (30% boost per match)
-
-## Data Structure
-
-### Raw Data Processing
-
-Raw documents are processed to extract:
-- Document text content
-- Headings and document structure
-- Metadata like document type, keywords, etc.
-
-### Processed Data Format
-
-The processed data directory contains JSON-structured files with:
-- Heading information
-- Text content
-- Keywords and entities
+### Exam Module
+- Exam notification setup
+- Schedule management
+- Deadline tracking
+- Exam information retrieval
 
 ## Future Enhancements
 
-- Support for more languages
+- Enhanced language support
 - Improved entity extraction
 - Personalized search based on user profiles
-- Integration with university systems for real-time data
-- More AI models integration and fine-tuning options
-- Advanced conversation history management with summarization 
+- Integration with university systems
+- Advanced conversation history management
+- More AI models integration
+- Real-time data synchronization
+- Enhanced error handling and recovery
+- User preference management
+- Analytics and reporting features 
