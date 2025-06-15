@@ -126,7 +126,7 @@ def get_module_response(query: str, language: str = "English") -> str:
                 from Library import process_library_query
                 
                 # Process the library query through the orchestrator with the model and context
-                result = process_library_query(query, chat_summary)
+                result = process_library_query(query, chat_summary, is_arabic_query)
 
                 if result is not None:
                     response = result["response"]
@@ -148,7 +148,7 @@ def get_module_response(query: str, language: str = "English") -> str:
                 else:
                     collection_name = "professor_data_json"
                 
-                result = process_professor_query(query, collection_name,chat_summary)
+                result = process_professor_query(query, collection_name, chat_summary, is_arabic_query)
                 
                 # If it's a meeting request, return the generated response
                 if result is not None and result.get("is_meeting_request", False):
@@ -181,7 +181,7 @@ def get_module_response(query: str, language: str = "English") -> str:
                 else:
                     collection_name = "exam_data_json"
                 
-                result = process_exam_query(query, collection_name,chat_summary)
+                result = process_exam_query(query, collection_name, chat_summary, is_arabic_query)
                 
                 # If it's a meeting request, return the generated response
                 if result is not None and result.get("is_notification_request", False):

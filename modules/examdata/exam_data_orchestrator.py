@@ -30,7 +30,7 @@ def detect_exam_notification_intent(query: str, chat_summary=None) -> Tuple[bool
     1. Consider the attached summary of the previous conversation to determine the intention:
         - {chat_summary}
 
-        
+    
     Return ONLY a JSON object with the following structure:
     {{
         "is_notification_intent": true/false,
@@ -91,13 +91,14 @@ def detect_exam_notification_intent(query: str, chat_summary=None) -> Tuple[bool
         # Default to False if there's an error
         return False, 0.0, f"Error during classification: {str(e)}", None
 
-def setup_exam_notification(exam_subject: Optional[str] = None) -> Dict[str, Any]:
+def setup_exam_notification(exam_subject: Optional[str] = None, is_arabic: bool = False) -> Dict[str, Any]:
     """
     Set up exam notification for the specified subject.
     This is a placeholder that will be replaced with actual notification system later.
     
     Args:
         exam_subject: Optional name of the exam/subject
+        is_arabic: Whether the response should be in Arabic
         
     Returns:
         Dictionary with notification setup information
@@ -107,6 +108,17 @@ def setup_exam_notification(exam_subject: Optional[str] = None) -> Dict[str, Any
     
     # Placeholder demo notification setup - this would be replaced with actual notification system
     notification_id = f"exam-notification-{exam_subject.lower().replace(' ', '-')}" if exam_subject else "exam-notification-general"
+    
+    if is_arabic:
+        subject_display = f" لـ {exam_subject}" if exam_subject else ""
+        return {
+            "notification_id": notification_id,
+            "exam_subject": exam_subject,
+            "status": "نشط",
+            "message": f"تم إعداد الإشعارات بنجاح{subject_display}. "
+                      f"ستتلقى تذكيرات حول جدول امتحاناتك، والتواريخ المهمة، والمواعيد النهائية. "
+                      f"هذا نظام إشعارات تجريبي سيتم استبداله بنظام إشعارات حقيقي في المستقبل."
+        }
     
     return {
         "notification_id": notification_id,
@@ -137,7 +149,7 @@ def process_exam_query(query: str, collection_name: str, chat_summary=None, is_a
     # If it's a notification request with reasonable confidence
     if is_notification and confidence > 0.7:
         # Set up exam notification
-        notification_info = setup_exam_notification(exam_subject)
+        notification_info = setup_exam_notification(exam_subject, is_arabic)
         
         if is_arabic:
             response = f"ممتاز! لقد قمت بإعداد إشعارات الامتحان{' لـ ' + exam_subject if exam_subject else ''}. " + notification_info["message"]

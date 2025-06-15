@@ -80,13 +80,14 @@ def detect_meeting_intent(query: str,chat_summary=None) -> Tuple[bool, float, st
         # Default to False if there's an error
         return False, 0.0, f"Error during classification: {str(e)}"
 
-def generate_meeting_link(professor_name: Optional[str] = None) -> Dict[str, Any]:
+def generate_meeting_link(professor_name: Optional[str] = None, is_arabic: bool = False) -> Dict[str, Any]:
     """
     Generate a meeting link for scheduling with a professor.
     This is a placeholder that will be replaced with Calendly integration later.
     
     Args:
         professor_name: Optional name of the professor
+        is_arabic: Whether the response should be in Arabic
         
     Returns:
         Dictionary with meeting link information
@@ -100,6 +101,15 @@ def generate_meeting_link(professor_name: Optional[str] = None) -> Dict[str, Any
         # Clean the professor name for URL (remove titles and simplify)
         clean_name = professor_name.lower().replace("professor ", "").replace("dr. ", "").replace(" ", "-")
         demo_link += f"/{clean_name}"
+    
+    if is_arabic:
+        professor_display = f" مع {professor_name}" if professor_name else ""
+        return {
+            "meeting_link": demo_link,
+            "professor": professor_name,
+            "instructions": f"انقر على الرابط أدناه لجدولة اجتماع{professor_display}. "
+                          f"هذا رابط تجريبي سيتم استبداله بنظام جدولة حقيقي في المستقبل."
+        }
     
     return {
         "meeting_link": demo_link,
@@ -128,7 +138,7 @@ def process_professor_query(query: str, collection_name: str, chat_summary=None,
     # If it's a meeting request with reasonable confidence
     if is_meeting and confidence > 0.7:
         # Generate meeting link
-        meeting_info = generate_meeting_link(professor_name)
+        meeting_info = generate_meeting_link(professor_name, is_arabic)
         
         if is_arabic:
             response = f"سأكون سعيداً بمساعدتك في جدولة اجتماع{' مع ' + professor_name if professor_name else ''}. " + meeting_info["instructions"]
