@@ -13,7 +13,7 @@ from modules.classified_chatbot import rag_pipeline_simple
 from Library.DB_endpoint import db_endpoint
 
 # Import translation handler
-from base.translation_handler import is_arabic, translate_to_english
+from base.translation_handler import is_arabic, translate_to_english_variations
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -102,10 +102,16 @@ def get_module_response(query: str, language: str = "English") -> str:
         # Check if query is in Arabic and translate if needed
         is_arabic_query = is_arabic(query)
         if is_arabic_query:
-            translated_query, success = translate_to_english(query)
+            translated_query, success, variations = translate_to_english_variations(query)
             if success:
                 query = translated_query
                 print("Translated Query for Classification: ", query)
+                print("Query Variations: ", variations)
+        else:
+            # Generate variations for English query
+            _, success, variations = translate_to_english_variations(query)
+            if success:
+                print("Query Variations: ", variations)
         
         # First, classify the query to determine which module should handle it (WITH CONTEXT)
         classification, chat_summary = classify_query_sync(query, message_history)
@@ -218,8 +224,16 @@ def get_module_response(query: str, language: str = "English") -> str:
             else:
                 model = f"openai/{model}"
         
-        # Use RAG pipeline to get response (with context summary)
-        result = rag_pipeline_simple(query, collection_name, model, message_history=message_history, chat_summary=chat_summary, is_arabic=is_arabic_query)
+        # Use RAG pipeline to get response (with context summary and variations)
+        result = rag_pipeline_simple(
+            query, 
+            collection_name, 
+            model, 
+            message_history=message_history, 
+            chat_summary=chat_summary, 
+            is_arabic=is_arabic_query,
+            variations=variations if success else None
+        )
         response = result["response"]
         
         # Add debug info if in development
@@ -227,7 +241,9 @@ def get_module_response(query: str, language: str = "English") -> str:
         if os.getenv("APP_ENV") == "development":
             debug_info = f"\n\n---\nDebug: Query classified as '{module_name}' (confidence: {confidence:.2f})\n"
             debug_info += f"Context influenced: {context_influence}\n"
-            debug_info += f"Reasoning: {reasoning}"
+            debug_info += f"Reasoning: {reasoning}\n"
+            if success and variations:
+                debug_info += f"Query variations processed: {', '.join(variations)}"
         
         return response + debug_info
             

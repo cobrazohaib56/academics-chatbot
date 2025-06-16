@@ -130,20 +130,47 @@ def generate_response(query: str, context: List[Dict[str, Any]], model: str = "o
 
     return response.choices[0].message.content
 
-def rag_pipeline_simple(query: str, collection_name: str, model: str = "openai/gpt-4o-mini", message_history=None, chat_summary=None, is_arabic: bool = False) -> Dict[str, Any]:
-    """Simple RAG pipeline that retrieves context and generates a response."""
+def rag_pipeline_simple(query: str, collection_name: str, model: str = "openai/gpt-4o-mini", message_history=None, chat_summary=None, is_arabic: bool = False, variations: List[str] = None) -> Dict[str, Any]:
+    """Simple RAG pipeline that retrieves context and generates a response for multiple query variations."""
     try:
-        # Retrieve relevant context
-        search_results = search_qdrant_simple(query, collection_name, limit=3)
+        all_search_results = []
+        all_responses = []
         
-        # Generate response using the context
-        response = generate_response(query, search_results, model, message_history, chat_summary, is_arabic)
+        # Process original query
+        search_results = search_qdrant_simple(query, collection_name, limit=3)
+        all_search_results.extend(search_results)
+        
+        # Process variations if provided
+        if variations:
+            for variation in variations:
+                var_results = search_qdrant_simple(variation, collection_name, limit=3)
+                all_search_results.extend(var_results)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_results = []
+        for result in all_search_results:
+            # Create a unique identifier for each result
+            result_id = f"{result['payload']['text']}"
+            if result_id not in seen:
+                seen.add(result_id)
+                unique_results.append(result)
+        
+        # Sort results by score in descending order
+        unique_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+        
+        # # Take top 3 results after combining all variations
+        # top_results = unique_results[:3]
+        
+        # Generate response using the combined context
+        response = generate_response(query, unique_results, model, message_history, chat_summary, is_arabic)
         
         return {
-        "original_query": query,
-        "search_results": search_results,
-        "response": response
-    }
+            "original_query": query,
+            "variations": variations,
+            "search_results": unique_results,
+            "response": response
+        }
     except Exception as e:
         print(f"Error in RAG pipeline: {e}")
         return {
