@@ -339,13 +339,15 @@ def format_library_response(query: str, results: Dict[str, Any], is_arabic: bool
         
         return fallback_response.choices[0].message.content.strip()
 
-def process_library_query(query: str,chat_summary=None) -> Dict[str, Any]:
+def process_library_query(query: str, is_arabic_query: bool, chat_summary=None) -> Dict[str, Any]:
     """
     Process a query related to the library, determining if it should use the database
     endpoint or be handled by a general response using the RAG pipeline.
     
     Args:
         query: The user's question
+        is_arabic_query: Whether the query is in Arabic
+        chat_summary: Optional chat history summary
         
     Returns:
         A dictionary with the response and metadata
@@ -358,12 +360,12 @@ def process_library_query(query: str,chat_summary=None) -> Dict[str, Any]:
         # Handle booking intent
         if intent == "booking" and confidence > 0.6:
             # Extract book name from query
-            book_name = extract_book_name(query,chat_summary)
+            book_name = extract_book_name(query, chat_summary)
             print(f"Extracted book name: {book_name}")  # Debug print
             
             if not book_name:
                 return {
-                    "response": "I couldn't identify which book you want to book. Please specify the book name.",
+                    "response": "لم أتمكن من تحديد الكتاب الذي تريد حجزه. يرجى تحديد اسم الكتاب." if is_arabic_query else "I couldn't identify which book you want to book. Please specify the book name.",
                     "is_booking": True,
                     "success": False
                 }
@@ -374,7 +376,7 @@ def process_library_query(query: str,chat_summary=None) -> Dict[str, Any]:
             
             if not is_available:
                 return {
-                    "response": f"I'm sorry, but '{book_name}' is not available for booking at the moment.",
+                    "response": f"عذراً، الكتاب '{book_name}' غير متاح للحجز في الوقت الحالي." if is_arabic_query else f"I'm sorry, but '{book_name}' is not available for booking at the moment.",
                     "is_booking": True,
                     "success": False
                 }
@@ -383,8 +385,13 @@ def process_library_query(query: str,chat_summary=None) -> Dict[str, Any]:
             success, message = book_available_book(book_name)
             print(f"Booking result: {success} - {message}")  # Debug print
             
+            if success:
+                response = f"تم حجز الكتاب '{book_name}' بنجاح. الكتاب الآن محجوز." if is_arabic_query else message
+            else:
+                response = f"عذراً، لم نتمكن من حجز الكتاب '{book_name}'. قد لا يكون متاحاً الآن." if is_arabic_query else message
+            
             return {
-                "response": message,
+                "response": response,
                 "is_booking": True,
                 "success": success,
                 "book_info": book_info
@@ -394,7 +401,7 @@ def process_library_query(query: str,chat_summary=None) -> Dict[str, Any]:
         results = db_endpoint(query)
         
         # Format the results using LLM
-        formatted_response = format_library_response(query, results)
+        formatted_response = format_library_response(query, results, is_arabic_query)
         
         return {
             "response": formatted_response,

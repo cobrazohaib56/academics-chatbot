@@ -126,7 +126,7 @@ def get_module_response(query: str, language: str = "English") -> str:
                 from Library import process_library_query
                 
                 # Process the library query through the orchestrator with the model and context
-                result = process_library_query(query, chat_summary, is_arabic_query)
+                result = process_library_query(query, is_arabic_query, chat_summary)
 
                 if result is not None:
                     response = result["response"]
@@ -194,6 +194,7 @@ def get_module_response(query: str, language: str = "English") -> str:
             except Exception as e:
                 logger.error(f"Error in exam orchestrator: {e}", exc_info=True)
                 # Continue with RAG pipeline if there's an error
+                
         # For other modules or non-meeting professor queries, use the RAG pipeline
         # Determine which collection to use
         if module_name in MODULES:
